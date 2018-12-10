@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <style type="text/css">
+        html,
+        body {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+        }
+
+        .compass-container {
+            display: inline-block;
+            justify-items: center;
+            align-items: center;
+            text-align: center;
+            margin: 1em;
+        }
+
+        .compass {
+            width: 10px;
+            height: 10px;
+            display: grid;
+            justify-content: center;
+            border-radius: 100%;
+            border: 2px solid black;
+            font-family: monospace;
+            font-size: 125%
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Sail North.</h1>
+    <i>turn to port: a, turn to starboard: d</i>
+    <pre id="display"></pre>
+    <script type="application/javascript">
+        Math.bool = (chance = 0.5) => Math.random() >= chance
+        Math.randInt = (max = 100, min = 0) => Math.floor(Math.random() * (max - min)) + min
+        Math.randDeg = () => Math.randInt(360)
+        Math.randStr = () => Math.random().toString(36).substring(2)
+        Math.avg = (...args) => args.reduce((acc, val) => acc += val, 0) / args.length
+
+        function clock(speed = 500, cb) {
+            const start = performance.now()
+            cb()
+            setTimeout(clock.bind(clock, speed, cb), speed - (performance.now() - start))
+        }
+
+        function approach(source, target, rate = 1) {
+            if (source < target) {
+                return rate
+            }
+            if (source > target) {
+                return -rate
+            }
+            return 0
+        }
+
+        function log(arg) {
+            console.log(arg)
+            return arg
+        }
+
+        function updateRotator(entity) {
+            if (entity.targetAngle === undefined || entity.angle === entity.targetAngle)
+                entity.targetAngle = Math.randDeg()
+            if (entity.targetForce === undefined || entity.force === entity.targetForce)
+                entity.targetForce = Math.randInt()
+            entity.force += approach(entity.force, entity.targetForce)
+            entity.angle += approach(entity.angle, entity.targetAngle, entity.force / 100)
+        }
+
+        function renderRotator(entity) {
+            const { id = undefined, angle = 0, force = 0, label = "???", mounted = false } = entity
+            if (!mounted) mountRotator(entity)
+            document.getElementById(id).style.transform = `rotate(${angle + 180}deg)`
+            document.getElementById(`${id}-label`).innerText = `${label}: ${parseInt(angle % 360)}deg / ${parseInt(force)}spd`
+        }
+
+        function mountRotator(entity, parent = document.body) {
+            const container = document.createElement("div")
+            const compass = document.createElement("div")
+            const label = document.createElement("label")
+
+            container.setAttribute("class", "compass-container")
+            compass.setAttribute("class", "compass")
+            compass.setAttribute("id", entity.id)
+            compass.innerText = "!"
+            label.setAttribute("id", `${entity.id}-label`)
+
+            container.appendChild(compass)
+            container.appendChild(label)
+            parent.appendChild(container)
+
+            entity.mounted = true
+        }
+
+        function makeEntity(label, update = updateRotator, render = renderRotator, props = {}) {
+            return {
+                id: Math.randStr(),
+                angle: Math.randDeg(),
+                force: Math.randInt(),
+                label,
+                update,
+                render,
+                ...props
+            }
+        }
+
+        let entities = [
+            wind = makeEntity("wind"),
+            sea = makeEntity("sea"),
+            ship = makeEntity("ship", (entity) => {
+                entity.targetForce = wind.force + sea.force
+                entity.targetAngle = Math.avg(wind.angle, sea.angle)
+                entity.force += approach(entity.force, entity.targetForce)
+                entity.angle += approach(entity.angle, entity.targetAngle, entity.force / 100) + (entity.dR || 0)
+            }, renderRotator, { angle: Math.avg(wind.angle, sea.angle), force: Math.avg(wind.force, sea.force) })
+        ]
+
+        document.addEventListener("keydown", ({ key }) => {
+            switch (key) {
+                case "a":
+                    ship.dR = -2
+                    break
+                case "d":
+                    ship.dR = +2
+                    break
+            }
+        })
+
+        document.addEventListener("keyup", ({ key }) => {
+            ship.dR = 0
+        })
+
+        clock(250, () => entities.forEach(entity => entity.update(entity)))
+        clock(100, () => entities.forEach(entity => entity.render(entity)))
+    </script>
+</body>
+
+</html>
